@@ -1,0 +1,9 @@
+name: JukeboxPlayer
+version: '1.0'
+main: me.isaac.jukeboxPlayer.JukeboxPlayer
+api-version: '1.21'
+commands:
+  jukebox:
+    description: set a block to play music
+    usage: /jukebox
+    permission: jukebox.admin
