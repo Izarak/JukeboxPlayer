@@ -29,7 +29,7 @@ public final class JukeboxPlayer extends JavaPlugin implements Listener {
             Material.MUSIC_DISC_RELIC,
             Material.MUSIC_DISC_CREATOR,
             Material.MUSIC_DISC_TEARS,
-            Material.MUSIC_DISC_5,
+//            Material.MUSIC_DISC_5,
             Material.MUSIC_DISC_OTHERSIDE,
             Material.MUSIC_DISC_BLOCKS,
             Material.MUSIC_DISC_CHIRP,
@@ -101,9 +101,17 @@ public final class JukeboxPlayer extends JavaPlugin implements Listener {
         if (args.length > 0) {
             if (args[0].equalsIgnoreCase("skip")) {
                 disc = discs[ThreadLocalRandom.current().nextInt(discs.length)];
-                lastPlayed = 0;
-                playDisc(disc);
+            } else {
+                try {
+                    disc = Material.valueOf(args[0]);
+                } catch (IllegalArgumentException exception) {
+                    player.sendMessage(ChatColor.RED + "Unknown disc.");
+                    return true;
+                }
+                player.sendMessage(ChatColor.GREEN + "Playing disc: " + args[0]);
             }
+            lastPlayed = 0;
+            playDisc(disc);
             return true;
         }
 
@@ -120,8 +128,14 @@ public final class JukeboxPlayer extends JavaPlugin implements Listener {
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         List<String> list = new ArrayList<>();
 
-        if (args.length == 1)
+        if (args.length == 1) {
             list.add("skip");
+
+            for (Material material : discs) {
+                list.add(material.name());
+            }
+
+        }
 
         return list;
     }
@@ -156,15 +170,16 @@ public final class JukeboxPlayer extends JavaPlugin implements Listener {
         new BukkitRunnable() {
             @Override
             public void run() {
-                lastPlayed += 20;
+                lastPlayed += 5;
 
                 if (lastPlayed >= 20 * 60 * 6) {
                     disc = discs[ThreadLocalRandom.current().nextInt(discs.length)];
                     playDisc(disc);
                 }
+                playParticle();
 
             }
-        }.runTaskTimer(this, 0, 20);
+        }.runTaskTimer(this, 0, 5);
 
     }
 
@@ -175,6 +190,14 @@ public final class JukeboxPlayer extends JavaPlugin implements Listener {
                 jukeboxLocations.remove(jbl);
         }
         lastPlayed = 0;
+    }
+
+    public void playParticle() {
+        for (JukeboxLocation jukeboxLocation : jukeboxLocations) {
+            if (!jukeboxLocation.isPlaying())
+                continue;
+            jukeboxLocation.getLocation().getWorld().spawnParticle(Particle.NOTE, jukeboxLocation.getLocation().clone().add(.5, 1, .5), 5, 1, .5, 1);
+        }
     }
 
     public Set<JukeboxLocation> getJukeboxLocations() {

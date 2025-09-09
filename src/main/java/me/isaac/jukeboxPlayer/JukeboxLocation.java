@@ -23,4 +23,11 @@ public class JukeboxLocation {
     public Location getLocation() {
         return location;
     }
+
+    public boolean isPlaying() {
+        if (!(location.getBlock().getState() instanceof Jukebox box))
+            return false;
+        return box.isPlaying();
+    }
+
 }
