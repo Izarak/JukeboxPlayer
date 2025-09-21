@@ -13,6 +13,7 @@ import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
 
+import javax.annotation.Nullable;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -25,20 +26,19 @@ public final class JukeboxPlayer extends JavaPlugin implements Listener {
 
     Set<JukeboxLocation> jukeboxLocations = new HashSet<>();
 
-    final Material[] discs = new Material[] {
-            Material.MUSIC_DISC_RELIC,
-            Material.MUSIC_DISC_CREATOR,
-            Material.MUSIC_DISC_TEARS,
-//            Material.MUSIC_DISC_5,
-            Material.MUSIC_DISC_OTHERSIDE,
-            Material.MUSIC_DISC_BLOCKS,
-            Material.MUSIC_DISC_CHIRP,
-            Material.MUSIC_DISC_FAR,
-            Material.MUSIC_DISC_MELLOHI,
-            Material.MUSIC_DISC_STAL,
-            Material.MUSIC_DISC_STRAD,
-            Material.MUSIC_DISC_CREATOR_MUSIC_BOX,
-            Material.MUSIC_DISC_WAIT
+    final DiscMaterial[] discs = new DiscMaterial[] {
+            new DiscMaterial(Material.MUSIC_DISC_RELIC, 20),
+            new DiscMaterial(Material.MUSIC_DISC_CREATOR, 10),
+            new DiscMaterial(Material.MUSIC_DISC_TEARS, 5),
+            new DiscMaterial(Material.MUSIC_DISC_OTHERSIDE, 10),
+            new DiscMaterial(Material.MUSIC_DISC_BLOCKS, 20),
+            new DiscMaterial(Material.MUSIC_DISC_CHIRP, 5),
+            new DiscMaterial(Material.MUSIC_DISC_FAR, 25),
+            new DiscMaterial(Material.MUSIC_DISC_MELLOHI, 15),
+            new DiscMaterial(Material.MUSIC_DISC_STAL, 30),
+            new DiscMaterial(Material.MUSIC_DISC_STRAD, 10),
+            new DiscMaterial(Material.MUSIC_DISC_CREATOR_MUSIC_BOX, 12),
+            new DiscMaterial(Material.MUSIC_DISC_WAIT, 5)
     };
 
     private File file;
@@ -93,6 +93,15 @@ public final class JukeboxPlayer extends JavaPlugin implements Listener {
 
     }
 
+    @Nullable
+    public DiscMaterial getDiscMaterial(Material material) {
+        for (DiscMaterial discMaterial : discs) {
+            if (discMaterial.disc.equals(material))
+                return discMaterial;
+        }
+        return null;
+    }
+
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (!(sender instanceof Player player))
@@ -103,14 +112,14 @@ public final class JukeboxPlayer extends JavaPlugin implements Listener {
                 disc = discs[ThreadLocalRandom.current().nextInt(discs.length)];
             } else {
                 try {
-                    disc = Material.valueOf(args[0]);
+                    disc = getDiscMaterial(Material.valueOf(args[0]));
                 } catch (IllegalArgumentException exception) {
                     player.sendMessage(ChatColor.RED + "Unknown disc.");
                     return true;
                 }
                 player.sendMessage(ChatColor.GREEN + "Playing disc: " + args[0]);
             }
-            lastPlayed = 0;
+            lastPlayedDisc = 0;
             playDisc(disc);
             return true;
         }
@@ -129,10 +138,13 @@ public final class JukeboxPlayer extends JavaPlugin implements Listener {
         List<String> list = new ArrayList<>();
 
         if (args.length == 1) {
-            list.add("skip");
 
-            for (Material material : discs) {
-                list.add(material.name());
+            if ("skip".contains(args[0].toLowerCase()))
+                list.add("skip");
+
+            for (DiscMaterial material : discs) {
+                if (material.disc.name().toLowerCase().contains(args[0].toLowerCase()))
+                    list.add(material.disc.name());
             }
 
         }
@@ -159,44 +171,53 @@ public final class JukeboxPlayer extends JavaPlugin implements Listener {
         return false;
     }
 
-    private int lastPlayed = 0;
-    Material disc;
+    private int lastPlayedDisc = 0, lastRunParticle = 0;
+    DiscMaterial disc;
 
     private void initRunnable() {
 
         disc = discs[ThreadLocalRandom.current().nextInt(discs.length)];
         playDisc(disc);
 
+        final int period = 2;
         new BukkitRunnable() {
             @Override
             public void run() {
-                lastPlayed += 5;
+                lastPlayedDisc += 5;
 
-                if (lastPlayed >= 20 * 60 * 6) {
+                if (lastPlayedDisc >= 20 * 60 * 6) {
                     disc = discs[ThreadLocalRandom.current().nextInt(discs.length)];
                     playDisc(disc);
                 }
-                playParticle();
+
+                lastRunParticle += period;
+                if (lastRunParticle >= disc.ticks) {
+                    playParticle();
+                    lastRunParticle = 0;
+                }
 
             }
-        }.runTaskTimer(this, 0, 5);
+        }.runTaskTimer(this, 0, period);
 
     }
 
-    public void playDisc(Material disc) {
+    public void playDisc(DiscMaterial disc) {
         for (int i = 0; i < jukeboxLocations.size(); i++) {
             JukeboxLocation jbl = jukeboxLocations.toArray(new JukeboxLocation[]{})[i];
-            if (!jbl.playDisc(disc))
+            if (!jbl.playDisc(disc.disc))
                 jukeboxLocations.remove(jbl);
         }
-        lastPlayed = 0;
+        lastPlayedDisc = 0;
+        lastRunParticle = 0;
     }
 
     public void playParticle() {
         for (JukeboxLocation jukeboxLocation : jukeboxLocations) {
             if (!jukeboxLocation.isPlaying())
                 continue;
-            jukeboxLocation.getLocation().getWorld().spawnParticle(Particle.NOTE, jukeboxLocation.getLocation().clone().add(.5, 1, .5), 5, 1, .5, 1);
+            if (jukeboxLocation.getLocation().getWorld() == null)
+                return;
+            jukeboxLocation.getLocation().getWorld().spawnParticle(Particle.NOTE, jukeboxLocation.getLocation().clone().add(.5, 1, .5), 7, .75, .3, .75);
         }
     }
 
@@ -212,4 +233,9 @@ public final class JukeboxPlayer extends JavaPlugin implements Listener {
     public YamlConfiguration getYaml() {
         return yaml;
     }
+
+    record DiscMaterial(Material disc, long ticks) {
+
+    }
+
 }
